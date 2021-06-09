@@ -16,13 +16,11 @@ library(spdep)
 library(INLA)
 library(mgcv)
 library(ggplot2)
-source("/Users/Highstat/applicat/HighlandStatistics/Courses/Data/HighstatLibV11.R")
+source("HighstatLibV11.R")
 
-setwd("/Users/highstat/applicat/HighlandStatistics/Books/BGS/SpatialTempII/RCode/TornadoData")
-       
 
 #Illinois map and data
-Illi.shp <- readOGR("/Users/highstat/applicat/HighlandStatistics/Books/BGS/SpatialTempII/RCode/TornadoData/Tornado_Illinois.shp")
+Illi.shp <- readOGR("Shapefiles/Tornado_Illinois.shp")
 Torn <- read.csv(file = "Illinois_popNtor2.csv",
                  header = TRUE)
 
@@ -35,7 +33,7 @@ head(Torn)
 
 # Figure 24.1
 plot(Illi.shp)  
-#text(coordinates(Illi.shp),
+# text(coordinates(Illi.shp),
 #           labels(Illi.shp$ID),
 #     cex =0.7)
 
@@ -64,7 +62,7 @@ inla.debug.graph("Illi.graph")
 
 
 #Not in the book:
-plot(Illi.Inla.nb, par(cex = 0.75))
+# plot(Illi.Inla.nb, par(cex = 0.75))
 
 
 
@@ -72,7 +70,7 @@ plot(Illi.Inla.nb, par(cex = 0.75))
 # 24.3 Tornado data
 
 
-#Figure 24.3
+#Figure 24.4
 par(mfrow = c(2,2), mar = c(5,5,2,2), cex.lab = 1.5)
 plot(x = Torn$nT,
      y = 1:nrow(Torn),
@@ -123,7 +121,7 @@ sum(Torn$nT == 0) / nrow(Torn)
 
 
 # 24.5 CAR correlation
-
+par(mfrow=c(1,1))
 # iCAR correlation
 XY <- coordinates(Illi.shp)
 range(XY[,1])
@@ -166,9 +164,10 @@ text(x = XY[1,1],
 # 24.6 GAM with iCAR in R-INLA for the tornado data
 
 # 24.6.2 Running the Poisson GLM with iCAR in R-INLA
-
+# Not in book
 image(inla.graph2matrix(Illi.nb))
-plot(Illi.nb)
+# plot(Illi.nb) # Uses Rgraphviz
+# inla.debug.graph("Illi.graph")
 
 
 
@@ -473,7 +472,7 @@ Illi.shp$u <- u
 
 
 spplot(obj = Illi.shp, 
-       zcol = "u.group.y",
+       zcol = "u.group",
        colorkey = TRUE,
        col.regions = heat.colors(6, alpha = 0.5),
        asp = 1,
@@ -545,6 +544,9 @@ MyParams <- rownames(M2.sim$summary.fixed)
 MyID <- function(x){ which(rownames(SimData[[1]]$latent) == x) }
 RowNum.Betas <- lapply(MyParams, MyID)
 RowNum.Betas <- as.numeric(RowNum.Betas)
+# The MyID function does not work as the parameters have :1 suffix but
+# they always weem to be rows 4489 to 4497 (same as page 662)
+RowNum.Betas <- 4489:4497
 RowNum.Betas
 
 N1 <- 102
@@ -722,8 +724,9 @@ sigma_CAR
 
 HyperPC = list(prec = list(prior = "pc.prec",
                            fixed = FALSE,
-                           #param = c(0.1, 0.0001)
-                           param = c(1, 0.5)))
+                           param = c(0.1, 0.0001))) # originally commented out; output matches book
+                           #param = c(1, 0.5))) # original in code sigma.pc_CAR = 0.368
+                           #param = c(0.1, 0.001))) # text in book but sigma.pc_CAR = 0.226
 
 f2.pc <- nT ~ ElevS.std + LogDensity.std + Area.std + Year.cr +
          f(ID, 
@@ -805,21 +808,22 @@ Torn$ID2     <- Torn$ID
 
 # 28.8.4 The BYM2 model for spatial correlation
 
-# Can't remember what this one was.
-f5 <- nT ~ ElevS.std + LogDensity.std + Area.std + Year.cr +
-  f(County, 
-    model = "besag", 
-    graph = Illi.adj,
-    adjust.for.con.comp = FALSE,
-    constr = TRUE,
-    scale.model=TRUE) +
-  f(County2, model = "iid") 
-  
-M5 <- inla(formula = f5, 
-           lincomb = lcs.Year,
-           family = "poisson", 
-           data = Torn,
-           control.compute = list(dic = TRUE, waic = TRUE))
+# Can't remember what this one was. # This comment is written by Alain Zuur!!
+# Roy has commented f5 and M5 out as not in book
+# f5 <- nT ~ ElevS.std + LogDensity.std + Area.std + Year.cr +
+#   f(County, 
+#     model = "besag", 
+#     graph = Illi.adj,
+#     adjust.for.con.comp = FALSE,
+#     constr = TRUE,
+#     scale.model=TRUE) +
+#   f(County2, model = "iid") 
+#   
+# M5 <- inla(formula = f5, 
+#            lincomb = lcs.Year,
+#            family = "poisson", 
+#            data = Torn,
+#            control.compute = list(dic = TRUE, waic = TRUE))
 
 
 
@@ -838,7 +842,7 @@ f6 <- nT ~ ElevS.std + LogDensity.std + Area.std + Year.cr +
     constr = TRUE,
     scale.model=TRUE)
 
-M6 <- inla(formula = f6, 
+M6 <- inla(formula = f6,      # Very slow; about 5 minutes
            lincomb = lcs.Year,
            family = "poisson", 
            data = Torn,
@@ -1124,7 +1128,7 @@ f10 <- nT ~ ElevS.std + LogDensity.std + Area.std +
     group = County1,
     control.group = list(model = "besag", graph = Illi.adj))
 
-M10 <- inla(formula = f10, 
+M10 <- inla(formula = f10, # Very slow to converge (10 to 15 minutes)
            family = "poisson", 
            data = Torn,
            control.compute = list(dic = TRUE, waic = TRUE))
@@ -1204,7 +1208,7 @@ f11 <- nT ~ ElevS.std + LogDensity.std + Area.std +
     group = Year1,
     control.group = list(model = "rw2"))
 
-M11 <- inla(formula = f11, 
+M11 <- inla(formula = f11,  # Very slow. 10 to 15 mins CPU
             family = "poisson", 
             data = Torn,
             control.compute = list(dic = TRUE, waic = TRUE))
@@ -1219,6 +1223,7 @@ M11 <- inla(formula = f11,
 ############################################
 # Figure a la Figure 1 in Knorr-Held (1999)
 #Figures 24.12, 14.14, 24.15, 24.18, 
+par(mfrow=c(1,1)) # Too cramp to read in RStudio if on one plot
 plot(x = 0, y = 0, axes = FALSE, type = "n",
      xlim = c(0, 11),
      ylim = c(0,11),
