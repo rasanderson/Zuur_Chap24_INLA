@@ -1,0 +1,154 @@
+---
+title: "Example spatio-temporal INLA"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message=FALSE, warning=FALSE, fig.dim=c(4.5,3.5))
+# NOTE: use rmarkdown::render("INLA_summary.Rmd") to avoid having to reload Zuur.RData
+```
+
+## Introduction
+
+This is based on Chapter 24 of Volume II of _Beginner's Guide to Spatial, Temporal and Spatial-Temporal Ecological Data Analysis with R-INLA. Section numbers refer to section numbers in Chapter 24 for convenience to me, which are:
+
+* 24.1 Areal vs geostatistical data
+* 24.2 Neighbourhood data
+* 24.3 Tornado data used throughout chapter
+* 24.4 Model specification
+* 24.5 CAR correlation
+* 24.6 GAM with iCAR (though actually a GLM with iCAR)
+* 24.7 Zero-inflated GAM/GLM with iCAR
+* 24.8 Changing the priors, and BYM2 model
+* 24.9 Spatio-temporal analysis and display
+
+Some of the above sections are not relevant to us analytically, but I'll put them in where Zuur has done useful visualisations. Likewise some sections use GAMs rather than GLMs and I'll show the former, but we can easily adapt for the latter. I won't show the code, but have access to it.
+
+```{r setup_libraries_data}
+library(raster)
+library(rgdal)
+library(sp)
+library(spdep)
+library(INLA)
+library(mgcv)
+library(ggplot2)
+source("HighstatLibV11.R")
+# load("Zuur.RData) # Don't run unless essential as 1Gb file
+```
+
+## 24.1 Areal vs geostatistical data
+We know all this. Zuur explains how common areal is in medical sciences
+
+## 24.2 Neighbourhood data
+Introduces the Illinois county structure which looks like
+
+```{r illinois_counties}
+par(mfrow=c(1,2))
+plot(Illi.shp)
+plot(Illi.shp, border=grey(0.5))  
+plot(Illi.nb, 
+     coords = Coords, 
+     add = TRUE,
+     pch = 16,
+     lwd = 2)
+par(mfrow=c(1,1))
+```
+
+## 24.3 Tornado data
+This is 4,386 observations (102 counties in 43 years) with the percentage of observations equal to zero at 83%. Elevation per county, time (years),  area and population of each county available. No obvious patterns but this is across all counties, so fairly coarse.
+
+```{r covariate_scatterplot}
+MyX <- c("LogDensity", "elevS", "area", "Year")
+MyMultipanel.ggp2(Z = Torn,
+                  varx = MyX,
+                  vary = "nT",
+                  ylab = "Number of tornados",
+                  addSmoother = TRUE,
+                  addRegressionLine = FALSE,
+                  addHorizontalLine = FALSE) 
+```
+
+## 24.4 Model specification
+Zuur says the max no. of tornados in any county is too low to justify negative binomial. ZIP or Poisson GLM could be used. Basic model of former is:
+
+$$T_{is}\sim Poisson(\mu_{is})$$
+$$E(T_{is})=\mu_{is}=var(T_{is})$$
+$$log(\mu_{is})=Intercept +Covariates_{is}+County_i$$
+$T_{is}$ is no.s of tornados in county _i_ in year _s_. In original paper `rw` added as smoother for year.
+
+## 24.5 CAR correlation
+### 24.5.1 Random effects
+This now uses County more formally as a random effect. To conform with most previous literature Zuur changes the County component to $u_i$ where $i$ is 1 to 102 for no. of counties:
+$$log(\mu_{is})=Intercept +Covariates_{is}+u_i$$
+which is a conventional random-effects model.
+
+### 24.5.2 CAR mathematics
+This section explains CAR and intrinsic CAR (iCAR), and underlying mathematics. Hopefully we can skip for now.
+
+## 24.6 GAM with iCAR on tornado data
+Steve and I (and suspect Ellen) don't like GAMs, but there are some useful diagnostics etc. And the subtitles relate to GLMs, and they look like GLMs to me!
+
+### 24.6.1 Covariates in the link function
+Gives the log-link function as
+$$log(\mu_{is})=\beta_1 + \beta_2\cdot elevS_i + \beta_3\cdot LogDens_{is} + \beta_4\cdot Area_i + f(Year_s) + u_i$$
+Here $f(Year_s)$ is a spline smoothing function (which I can't find in the code, so maybe he just used GLM after all!). $u_i$ is the spatially correlated random effects $u_i\sim N(0, \sigma^2_{CAR})$
+
+### 24.6.2 Running the Poisson GLM with iCAR
+He now switches back to comparing a standard Poisson GLM with and without iCAR, done via the `model = "besag"` option in INLA. The Besag model has lower DIC and WAIC.
+
+### 24.6.3 Covariate effects
+Here he shows the results for the Besag Poisson GLM (iCAR). Note that he standardised the covariates:
+
+```{r}
+head(round(M2$summary.fixed[, c("mean", "0.025quant", "0.975quant")], 3),4)
+```
+
+and changes over time. This graph shows posterior mean values and 95% credible intervals. The solid line is from a smoother $f(Year_s)$ and the vertical ticks indicate years for which data available:
+
+```{r}
+Ns <- nrow(Torn)
+f.Year    <- M2$summary.lincomb.derived[1:Ns + 0 * Ns, "mean"] 
+SeLo.Year <- M2$summary.lincomb.derived[1:Ns + 0 * Ns,"0.025quant"] 
+SeUp.Year <- M2$summary.lincomb.derived[1:Ns + 0 * Ns,"0.975quant"]
+
+IYear <- order(Torn$Year)
+
+MyData <- data.frame(
+  mu   = c( f.Year[IYear]), 
+  SeUp = c(SeUp.Year[IYear]), 
+  SeLo = c(SeLo.Year[IYear]), 
+  Xaxis = c(sort(Torn$Year)),
+  ID    = factor(rep(c("Year smoother"), each = nrow(Torn))))
+
+
+library(ggplot2)
+p <- ggplot()
+p <- p + xlab("Year") + ylab("Smoother")
+p <- p + theme(text = element_text(size = 15))
+p <- p + geom_line(data = MyData, 
+                   aes(x = Xaxis, y = mu))
+
+p <- p + geom_ribbon(data = MyData, 
+                     aes(x = Xaxis, 
+                         ymax = SeUp, 
+                         ymin = SeLo),
+                     alpha = 0.6)
+
+my.ggp.yrange <- c(0, 0)
+XPos <- c(Torn$Year)
+XID  <- rep(c("Year smoother"), each = nrow(Torn) )
+
+MyData2 <- data.frame(Y     = rep(my.ggp.yrange, each = nrow(Torn)),
+                      Xaxis = XPos,
+                      ID    = factor(XID))
+p <- p + geom_text(data = MyData2,
+                   aes(y = Y,
+                       x = Xaxis,
+                       label = "|"),
+                   size = 1)
+p
+
+```
+
