@@ -485,3 +485,144 @@ where
 
 The main advantage of BYM2 is that with separate $\sigma$ and $\phi$ terms interpretation is much easier, and it is also makes it simpler to specify the PC terms.
 
+## 24.9 Spatio-temporal correlation for aerial data (useful for Teeside)
+This section is very useful, and aligns closely with what you've already done for Teeside. In particular, it uses Poisson BYM with `rw2` for time. It also shows how the 4 different types of possible interaction models can be built up, which would allow us to do the sort of presentation in the Zika/Dengue fever paper.
+
+### 24.9.1 Space and time
+The basic model is:
+
+$$log(\mu_{is})=Intercept + Covariates_{is} + Spatial_i + Temporal_s$$
+
+where $i$ is counties (postcodes for us) and $s$ is years (weeks in 2020 for us). Of course, in sections 24.1 to 24.8 there hasn't actually been an explicit $Temporal$ term as it was subsumed into a GAM smoother. Finally Zuur gets rid of that, and does something more conventional:
+
+* spatial modelled by BYM (which includes spatially correlated and noise iid)
+* temporal modelled by `rw2` smoother for year
+* also add a temporal iid for a year random effect (week for Teeside)
+
+This gives a model of:
+
+$$log(\mu_{is})=Intercept + Covariates_{is} + u_i + v_i + \gamma_s + \phi_s$$
+where we now have 4 types of random effects:
+
+* $u_i$ BYM spatial correlated effect
+* $v_i$ BYM spatial noise iid
+* $\gamma_s$ temporal long-term smoother
+* $\phi_s$ temporal noise iid
+
+Interpretation of the $\gamma_s + \phi_s$ is that there is a long-term smoother from the `rw2` ($\gamma_s$) and each year, or week for Teeside, may have random variation from this long-term trend ($\phi_s$).
+
+This diagram helps visualise the main terms and the 4 random effects:
+
+```{r main_terms_plus_rnd_effects, fig.dim=c(4.5,4.5)}
+par(mfrow=c(1,1)) # Too cramp to read in RStudio if on one plot
+plot(x = 0, y = 0, axes = FALSE, type = "n",
+     xlim = c(0, 11),
+     ylim = c(0,11),
+     xlab = "",
+     ylab = "")
+
+lines(x=c(3,3),y=c(1,10))
+lines(x=c(1,10),y=c(3,3))
+xy.Ind <- expand.grid(4:9, seq(4,9, by = 0.5))
+points(xy.Ind, pch = 16)
+text(x=10, y = 3.5, "Time", cex = 1.5)
+text(x=3, y = 10.5, "Space", cex = 1.5)
+
+# At the bottom:
+points(x = 4:9, y = rep(1,6), pch = 1, cex = 2.5)
+text(10, 1, expression(italic(phi[s])), cex = 1.5)
+text(10, 2, expression(italic(gamma[s])), cex = 1.5)
+
+rect(xleft = 3.75, ybottom = 1.75, xright = 9.25, ytop = 2.25,
+     col = grey(0.5))
+
+# left
+points(y = seq(4,9, by = 0.5), x = rep(1,11), pch = 1, cex = 2)
+text(1, 10, expression(italic(v[i])), cex = 1.5, font = 3)
+text(2, 10, expression(italic(u[i])), cex = 1.5)
+
+rect(xleft = 1.75, ybottom = 3.75, ytop = 9.25, xright = 2.25,
+     col = grey(0.5))
+```
+
+Here the grey rectangles represent spatially correlated random effects and temporally correlated random effects. The open circles represent iid for space and time. The black dots represent observations.
+
+This is in R the structure of the model, which I think matches the one you're currently using for Teeside.
+
+```{r spatio_temporal model, echo=TRUE, eval=FALSE}
+Torn$County <- Torn$ID
+Torn$County1 <- Torn$ID
+Torn$Year0 <- Torn$Year - min(Torn$Year) + 1
+Torn$Year1 <- Torn$Year - min(Torn$Year) + 1
+
+Hyper <- list(theta = list(prior = "pc.prec", 
+                           param = c(0.01, 0.0001)))
+
+f7 <- nT ~ ElevS.std + LogDensity.std + Area.std + 
+           f(County, 
+             model = "bym", 
+             graph = Illi.adj,
+             adjust.for.con.comp = FALSE,
+             constr = TRUE,
+             scale.model = TRUE) +
+           f(Year, 
+             model = "rw2") +
+           f(Year1,
+             model = "iid")
+
+lcs <- inla.make.lincombs(Year = diag(43),  Year1 = diag(43))
+
+
+M7 <- inla(formula = f7, 
+           family = "poisson", 
+           lincomb=lcs,
+           data = Torn,
+           control.compute = list(dic = TRUE, waic = TRUE))
+```
+
+Spatial random effects can be shown as a nice map as in Section 24.6.4 above. We can also show the `rw2` and `iid` compnents for time as:
+
+```{r temporal_plot}
+f.Year    <- M7$summary.random$Year[, "mean"] 
+SeLo.Year <- M7$summary.random$Year[,"0.025quant"] 
+SeUp.Year <- M7$summary.random$Year[,"0.975quant"]
+
+f.Yeariid    <- M7$summary.random$Year1[, "mean"] 
+SeLo.Yeariid <- M7$summary.random$Year1[,"0.025quant"] 
+SeUp.Yeariid <- M7$summary.random$Year1[,"0.975quant"]
+
+
+# Combine the smoother, and 95% CIs
+MyData <- data.frame(mu   = c(f.Year),
+                     SeUp = c(SeUp.Year),
+                     SeLo = c(SeLo.Year),
+                     Xaxis = c(M7$summary.random$Year[,1]))
+
+MyData.iid <- data.frame(mu   = c(f.Yeariid),
+                        SeUp = c(SeUp.Yeariid),
+                        SeLo = c(SeLo.Yeariid),
+                        Xaxis = c(M7$summary.random$Year1[,1]+1969))
+
+# Figure 24.13
+p <- ggplot()
+p <- p + xlab("Time") + ylab("Temporal trend and iid noise")
+p <- p + theme(text = element_text(size = 15))
+p <- p + geom_line(data = MyData, 
+                   aes(x = Xaxis, y = mu),
+                   lwd = 3)
+
+p <- p + geom_ribbon(data = MyData, 
+                     aes(x = Xaxis, 
+                         ymax = SeUp, 
+                         ymin = SeLo),
+                     alpha = 0.6)
+
+p <- p + geom_line(data = MyData.iid, 
+                   aes(x = Xaxis, y = mu))
+p
+```
+
+The solid thick line is `rw2` and trend $\gamma_s$, the thin line is `iid` noise $\phi_s$ and the grey bands are 95% credible intervals.
+
+
+

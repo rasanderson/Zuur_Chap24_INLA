@@ -1222,7 +1222,7 @@ M11 <- inla(formula = f11,  # Very slow. 10 to 15 mins CPU
 
 ############################################
 # Figure a la Figure 1 in Knorr-Held (1999)
-#Figures 24.12, 14.14, 24.15, 24.18, 
+#Figures 24.12, 24.14, 24.15, 24.18, 
 par(mfrow=c(1,1)) # Too cramp to read in RStudio if on one plot
 plot(x = 0, y = 0, axes = FALSE, type = "n",
      xlim = c(0, 11),
@@ -1243,7 +1243,7 @@ text(10, 1, expression(italic(phi[s])), cex = 1.5)
 text(10, 2, expression(italic(gamma[s])), cex = 1.5)
 
 rect(xleft = 3.75, ybottom = 1.75, xright = 9.25, ytop = 2.25,
-     col = grey(0))
+     col = grey(0.5))
 
 # left
 points(y = seq(4,9, by = 0.5), x = rep(1,11), pch = 1, cex = 2)
@@ -1251,7 +1251,7 @@ text(1, 10, expression(italic(v[i])), cex = 1.5, font = 3)
 text(2, 10, expression(italic(u[i])), cex = 1.5)
 
 rect(xleft = 1.75, ybottom = 3.75, ytop = 9.25, xright = 2.25,
-     col = grey(0))
+     col = grey(0.5))
 
 
 # Add this for type I interaction
