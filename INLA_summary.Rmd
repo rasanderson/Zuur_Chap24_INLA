@@ -402,3 +402,86 @@ rownames(Z.out) <- c("Poisson GAM",
 Z.out
 ```
 
+## 24.8 Changing the priors and the BYM2 model
+Suspect you know most of this stuff already though I'm only getting to grips with it, so I'll skim over what this contains. Note that Zuur shows the examples with the Poisson model, not the ZIP model, simply because most of previous graphs / maps were on Poisson model. Of course, it would in reality be better to use ZIP with his data.
+
+### 24.8.1 Hyperparamter of iCAR
+Zuur notes that the `summary(model)` gives loads of output that includes the hyperparmater:
+
+```{r hyperparam}
+M2$summary.hyperpar
+```
+
+This value is the precision $\tau_{CAR}$ which needs to be converted into into the standard deviation $\sigma_{CAR}$
+
+```{r tau_sigma, echo = TRUE}
+tau_CAR <- M2$marginals.hyperpar$`Precision for ID`
+sigma_CAR <- inla.emarginal(function(x) (1/sqrt(x)), tau_CAR)
+sigma_CAR
+```
+
+### 24.8.2 Penalised complexity prior
+OK, I'll admit that I don't understand PC priors though notice you have them in your code (ahem!).
+
+### 24.8.3 BYM model for spatial correlation
+Zuur now formally introduces the BYM model. Our original model was
+
+$$log(\mu_{is})=Intercept +Covariates_{is}+u_i$$
+where $u_i$ are the spatially correlated random effects, calculated by averaging neighbouring random effects. There are 102 counties in Illinois (equivalent to our Teeside postcodes), giving 102 $u_i$'s. **But**, if there is extra variation due to postcodes, and if this extra variation is **not** spatially correlated, the problem with iCAR is it can't separate between pure spatial correlation between counties and extra random variation at counties.
+
+The BYM solution is to include an extra random effect $v_i$ that is independent, identical and normally distributed (iid):
+
+$$log(\mu_{is})=Intercept +Covariates_{is}+u_i + v_i$$
+As we now have this extra term, we end up with both $\sigma_{CAR}$ and $\sigma_v$.
+
+Zuur then issues a **warning about ZIP** in BYM. If I've understood the text correctly, if some non-neighbouring counties have loads of zeros, the $v_i$ terms will try and model this explicitly, causing the ZIP to blow a wobbly. So he sticks to Poisson, expressed as:
+
+```{r eval = FALSE, echo = TRUE}
+HyperBYM <- list(
+  prec.unstruct=list(prior = "pc.prec",param = c(1, 0.5)),
+  prec.spatial=list(prior = "pc.prec",param = c(1, 0.5)))
+
+f4 <- nT ~ ElevS.std + LogDensity.std + Area.std + Year.cr +
+  f(ID, 
+    model = "bym", 
+    graph = Illi.adj,
+    hyper = HyperBYM, 
+    adjust.for.con.comp = FALSE,
+    constr = TRUE,
+    scale.model=TRUE)
+
+M4 <- inla(formula = f4, 
+              lincomb = lcs.Year,
+              family = "poisson", 
+              data = Torn,
+              control.compute = list(dic = TRUE, waic = TRUE))
+```
+
+again he produces a table for the GAM/GLM results, with the BYM lowest WAIC.
+
+```{r}
+# And compare the models with DICs and WAICs
+dic  <- c(M1$dic$dic, M2$dic$dic,  M4$dic$dic)   
+waic <- c(M1$waic$waic, M2$waic$waic,  M4$dic$dic)
+Z.out     <- cbind(dic, waic)
+rownames(Z.out) <- c("Poisson GAM",  
+                     "Poisson GAM + Besag",
+                     "Poisson GAM + BYM")
+Z.out
+```
+
+Zuur also states that it could be configured as a Besag model with a separate iid term which I think I spotted in one bit of Steve's code.
+
+###  24.8.4 BYM2 model for spatial correlation
+Introduced by Riebler et al. (2016) and described as now "the standard model for spatially correlated aerial data at the time of writing this book". Whilst BYM has separate spatial and noise terms, they often interact, making it very difficult to specify good priors for $\sigma_u$ and $sigma_v$. The model BYM2 is
+
+$$log(\mu_{is})=Intercept + Covariates_{is}+\sigma \cdot (\sqrt {1-\phi}\cdot v_i+\sqrt{\phi} \cdot u_i$$
+where
+
+* $u_i$ = spatially correlated noise
+* $v_i$ = pure noise
+* $\phi$ varies from 0 to 1. If $\phi$ = 0 then only pure noise, no spatial correlation; $\phi$ = 1 then only spatial correlation and no pure noise. If $\phi$ is >0 and <1 then both terms play a combined role.
+* $\sigma$ = controls how large or small this combined role is.
+
+The main advantage of BYM2 is that with separate $\sigma$ and $\phi$ terms interpretation is much easier, and it is also makes it simpler to specify the PC terms.
+
