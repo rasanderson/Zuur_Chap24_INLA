@@ -152,3 +152,160 @@ p
 
 ```
 
+### 24.6.4 Spatial random effects (Now things start to get interesting)
+In this map shows the numbers in each county represent the % change change in tornados due to the spatial random effect $u_i$ (blue decrease, red increase). Counties with a thick border are "important" in that their 95% credible intervals do not include zero.
+
+```{r fig_24_08}
+Illi.shp <- readOGR("Shapefiles/Tornado_Illinois.shp")
+Illi.shp$u.pm <- M2$summary.random$ID$mean
+
+u.pm <- M2$summary.random$ID$mean
+Id  <- 1:102
+
+
+
+
+
+# Plot the spatial random effect
+Illi.shp$RandomMean <- M2$summary.random$ID$mean
+Illi.shp$RandomQ50  <- M2$summary.random$ID$'0.5quant'
+Illi.shp$sd         <- M2$summary.random$ID$sd
+
+
+
+library(RColorBrewer)
+crq = brewer.pal(5, "GnBu")
+range(Illi.shp$RandomMean)
+rng = seq(-4, 3, 1)
+# spplot(Illi.shp, "RandomMean", col = "white", at = rng, 
+#        col.regions = crq,
+#        colorkey = list(space = "bottom", labels = paste(rng)),
+#        par.settings = list(axis.line = list(col = NA)),
+#        sub = "Spatial random effects")
+
+
+
+df <- M2$summary.random$ID
+names(df) = c("ID", "mean", "sd", "QL", "QM", "QH", "mode", "kld")
+df$QL = (exp(df$QL) - 1) * 100
+df$QM = (exp(df$QM) - 1) * 100
+df$QH = (exp(df$QH) - 1) * 100
+df$Sig = sign(df$QL) == sign(df$QH)
+table(df$Sig)
+Illi.shp$Sig = df$Sig
+
+
+
+
+
+
+
+ggplotSpdata <- function(x, field, tfun = function(x) I(x), 
+                         color = muted("yellow", l = 50, c = 80)){
+  CRS0 = CRS("+proj=longlat +datum=WGS84")
+  bc = getBordersAndCenters(x, CRS0)
+  bc$centers$newfield = tfun(x[[field]])
+  borders.df = merge(bc$borders, bc$centers[c("county", "newfield")], by = "county")
+  mapO = ggplot(borders.df, aes(x = long, y = lat, group = group, fill = newfield)) +
+    geom_polygon(colour = "gray", size = .2) +
+    coord_map(project = "polyconic") + 
+    theme(panel.grid.minor = element_blank(), 
+          panel.grid.major = element_blank(), 
+          panel.background = element_blank(),
+          axis.ticks = element_blank(),
+          axis.text = element_blank(),
+          legend.position = "bottom") +
+    xlab("") + ylab("") +
+    geom_text(data = bc$centers, 
+              aes(x = long, y = lat, group = NULL, label = newfield), 
+              vjust = .5, size = 3, color = color)
+  mapO
+}
+
+
+slibrary <- function(...) suppressMessages(library(...))
+
+# This file was taken from the support material from Jagger et al. (2015).
+source("CountyStatisticsSupport.R")
+
+MygetBordersAndCenters <- function(x,CRS0){  
+  centers.sp = rgeos::gCentroid(x, byid=TRUE)
+  centers.sp = spTransform(centers.sp, CRS0)
+  centers.df = as.data.frame(coordinates(centers.sp)) 
+  names(centers.df) = c("long", "lat")
+  centers.df$county = x$county  #rownames(centers.df)
+  borders.df = fortify(spTransform(x,CRS0),region="county")
+  borders.df$county = borders.df$id
+  return(list(borders=borders.df,centers=centers.df))
+}
+
+CRS0 = CRS("+proj=longlat +datum=WGS84")
+bc   = MygetBordersAndCenters(Illi.shp, CRS0)
+
+
+
+
+
+df2  = bc$centers
+df3  = cbind(df, df2)
+names(df3)[5] = 'newfield'
+borders.df = merge(bc$borders, 
+                   df3[c("county", "newfield", "Sig")], 
+                   by = "county")
+borders2.df = borders.df[borders.df$Sig, ]
+
+
+
+MyggplotSpdata <- function(x,field, tfun=function(x) I(x), color=muted("yellow",l=50,c=80)){
+  CRS0=CRS("+proj=longlat +datum=WGS84")
+  bc = MygetBordersAndCenters(x,CRS0)
+  bc$centers$newfield = tfun(x[[field]])
+  borders.df = merge(bc$borders, bc$centers[c("county","newfield")], by="county")
+  mapO = ggplot(borders.df, aes(x=long, y=lat, group=group, fill = newfield)) +
+    geom_polygon(colour = "gray", size = .2) +
+    coord_map(project="polyconic") + 
+    theme(panel.grid.minor=element_blank(), 
+          panel.grid.major=element_blank(), 
+          panel.background=element_blank(),
+          axis.ticks = element_blank(),
+          axis.text = element_blank(),
+          legend.position="none") +
+    xlab("") + ylab("") +
+    scale_fill_gradient2() +
+    geom_text(data=bc$centers, aes(x = long, y = lat, group=NULL, label = newfield), 
+              vjust = .5, size = 2, color = color)
+  mapO
+}
+
+
+
+p <- MyggplotSpdata(Illi.shp, "RandomMean", tfun = function(x) round((exp(x) - 1) * 100))
+p <- p + scale_fill_gradient2( 
+  low = muted("blue"), 
+  mid = "white", 
+  high = muted("red"),
+  midpoint = 0, 
+  space = "Lab", 
+  na.value = "grey50", 
+  guide = "colourbar",
+  aesthetics = "fill") 
+
+#p
+p <- p + geom_polygon(data = borders2.df[borders2.df$newfield > 0, ],
+                      aes(x = long, y = lat, group = group, fill = newfield),
+                      color = muted("red"), size = 2) 
+#p
+
+p <- p +  geom_polygon(data = borders2.df[borders2.df$newfield < 0, ],
+                       aes(x = long, y = lat, group = group, fill = newfield),
+                       color = muted("blue"), size = 2) 
+p <- p+
+  geom_text(data = df3[df3$Sig,], 
+            aes(x = long, y = lat, group = NULL, label = round(newfield)), 
+            vjust = .5, size = 2, color = 'black')
+p
+
+```
+
+If preferred, it is straightforward to display the actual spatial random effects, rather than converting into % as done here.
+
