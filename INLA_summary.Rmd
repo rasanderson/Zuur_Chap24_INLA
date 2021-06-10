@@ -389,4 +389,16 @@ points(x = sum(E2^2) / N,
        col = 2)
 ```
 
+## 24.7 Zero-inflated GAM/GLM with iCAR
+Zuur then repeats the analysis with a ZIP. The key table is below; could do model validation as above (not shown as my PC will blow-up).
+
+```{r ZIP_table_24_7}
+dic  <- c(M1$dic$dic, M2$dic$dic,  M3$dic$dic)   
+waic <- c(M1$waic$waic, M2$waic$waic, M3$waic$waic)
+Z.out     <- cbind(dic, waic)
+rownames(Z.out) <- c("Poisson GAM",  
+                     "Poisson GAM + Besag",
+                     "ZIP GAM + Besag")
+Z.out
+```
 
