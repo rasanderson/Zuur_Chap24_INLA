@@ -35,7 +35,7 @@ library(INLA)
 library(mgcv)
 library(ggplot2)
 source("HighstatLibV11.R")
-# load("Zuur.RData) # Don't run unless essential as 1Gb file
+# load("Zuur.RData") # Don't run unless essential as 1Gb file
 ```
 
 ## 24.1 Areal vs geostatistical data

@@ -38,3 +38,6 @@ vignettes/*.pdf
 # R Environment Variables
 .Renviron
 *.docx
+
+# Main environment is 1Gb so too big even with lfs large file support on git
+Zuur.RData
