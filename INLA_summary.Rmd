@@ -624,5 +624,209 @@ p
 
 The solid thick line is `rw2` and trend $\gamma_s$, the thin line is `iid` noise $\phi_s$ and the grey bands are 95% credible intervals.
 
+### 24.9.2 Four types of interactions
+The model in Section 24.9.1 assumes the spatial and temporal effects are independent and do not interact in any way. i.e. it assumes that spatial effects are constant over time, and temporal effects are constant over space. This is unlikely to be true for Teeside. So we can rewrite the model as:
 
+$$log(\mu_{is})=Intercept + Covariates_{is} + Spatial_i + Temporal_s + Spatial_i \times Temporal_s$$
+
+Given that both spatial and temporal are actually two components, this can be re-written as:
+
+$$log(\mu_{is})=Intercept + Covariates_{is} + u_i + v_i + \gamma_s + \phi_s + \delta_{is}$$
+
+where $\delta_{is}$ is the spatial-temporal interaction term. Knorr-Held (2000) define four types of interaction depending on how the spatial and temporal interaction cross-products are combined. They each provide different information about the underlying patterns in the data:
+
+* **Type I**   spatial iid $v_i$ and temporal iid $\phi_s$
+* **Type II**  spatial iid $v_i$ and temporal trend $\gamma_s$
+* **Type III** spatially correlated $u_i$ and temporal iid $\phi_s$
+* **Type IV**  spatially correlated $u_i$ and temporal trend $\gamma_s$
+
+### 24.9.3 Type I Interaction
+Since this is based on both the spatial and temporal iid's, this is best thought of as an observation level random intercept rather than a "real" interaction. It may indicate an unmeasured covariate that has an effect that is not structured in time and space. However it is not good for zero-inflated data. We can show it in our schematic diagram below, with the open circles around each observation indicating the interaction iid noise:
+
+```{r type_I, fig.dim=c(4.5,4.5)}
+par(mfrow=c(1,1)) # Too cramp to read in RStudio if on one plot
+plot(x = 0, y = 0, axes = FALSE, type = "n",
+     xlim = c(0, 11),
+     ylim = c(0,11),
+     xlab = "",
+     ylab = "")
+
+lines(x=c(3,3),y=c(1,10))
+lines(x=c(1,10),y=c(3,3))
+xy.Ind <- expand.grid(4:9, seq(4,9, by = 0.5))
+points(xy.Ind, pch = 16)
+text(x=10, y = 3.5, "Time", cex = 1.5)
+text(x=3, y = 10.5, "Space", cex = 1.5)
+
+# At the bottom:
+points(x = 4:9, y = rep(1,6), pch = 1, cex = 2.5)
+text(10, 1, expression(italic(phi[s])), cex = 1.5)
+text(10, 2, expression(italic(gamma[s])), cex = 1.5)
+
+rect(xleft = 3.75, ybottom = 1.75, xright = 9.25, ytop = 2.25,
+     col = grey(0.5))
+
+# left
+points(y = seq(4,9, by = 0.5), x = rep(1,11), pch = 1, cex = 2)
+text(1, 10, expression(italic(v[i])), cex = 1.5, font = 3)
+text(2, 10, expression(italic(u[i])), cex = 1.5)
+
+rect(xleft = 1.75, ybottom = 3.75, ytop = 9.25, xright = 2.25,
+     col = grey(0.5))
+points(xy.Ind, pch = 1, cex = 2)
+```
+
+The formula for this type of model is:
+
+```{r echo=TRUE, eval=FALSE}
+Torn$County.Year <- as.numeric(as.factor(paste(Torn$County, Torn$Year, sep = ".")))
+
+f8 <- nT ~ ElevS.std + LogDensity.std + Area.std + 
+  f(County, 
+    model = "bym", 
+    graph = Illi.adj,
+    adjust.for.con.comp = FALSE,
+    constr = TRUE,
+    scale.model = TRUE) +
+  f(Year, 
+    model = "rw2") +
+  f(Year1,
+    model = "iid") +
+  f(County.Year, model = "iid")
+```
+
+### 24.9.4 Type II Interaction (much more interesting)
+This is the spatial iid $v_i$ and temporal trend $\gamma_s$. Now each county (postcode) is allowed to have its own `rw2` trend, and these are deviations from the overall smoother $\gamma_s$. Temporal trends are different per county, but they do not have any structure in space. This model is most useful if there are unmeasured covariates that cause the temporal trend in a specific county (postcode) to be different from the main trend.
+
+We can show this schematically below, where the light grey rectangles are plotted for each county (postcode) along the time axis, and represent deviations from the main term $Temporal_s$.
+
+
+```{r type_II, fig.dim=c(4.5,4.5)}
+par(mfrow=c(1,1)) # Too cramp to read in RStudio if on one plot
+plot(x = 0, y = 0, axes = FALSE, type = "n",
+     xlim = c(0, 11),
+     ylim = c(0,11),
+     xlab = "",
+     ylab = "")
+
+lines(x=c(3,3),y=c(1,10))
+lines(x=c(1,10),y=c(3,3))
+xy.Ind <- expand.grid(4:9, seq(4,9, by = 0.5))
+points(xy.Ind, pch = 16)
+text(x=10, y = 3.5, "Time", cex = 1.5)
+text(x=3, y = 10.5, "Space", cex = 1.5)
+
+# At the bottom:
+points(x = 4:9, y = rep(1,6), pch = 1, cex = 2.5)
+text(10, 1, expression(italic(phi[s])), cex = 1.5)
+text(10, 2, expression(italic(gamma[s])), cex = 1.5)
+
+rect(xleft = 3.75, ybottom = 1.75, xright = 9.25, ytop = 2.25,
+     col = grey(0.5))
+
+# left
+points(y = seq(4,9, by = 0.5), x = rep(1,11), pch = 1, cex = 2)
+text(1, 10, expression(italic(v[i])), cex = 1.5, font = 3)
+text(2, 10, expression(italic(u[i])), cex = 1.5)
+
+rect(xleft = 1.75, ybottom = 3.75, ytop = 9.25, xright = 2.25,
+     col = grey(0.5))
+
+for (i in 1:11){
+ rect(xleft = 3.5, ybottom = 3.9 +0.5*(i-1), ytop = 4.1+0.5*(i-1), xright = 9.5,
+      col = grey(0.7))
+}
+points(xy.Ind, pch = 16)
+
+```
+
+The R code to do this is Type II model is:
+
+```{r, echo=TRUE, eval=FALSE}
+f9 <- nT ~ ElevS.std + LogDensity.std + Area.std + 
+  f(County, 
+    model = "bym", 
+    graph = Illi.adj,
+    adjust.for.con.comp = FALSE,
+    constr = TRUE,
+    scale.model = TRUE) +
+  f(Year0, 
+    model = "rw2") +
+  f(Year1,
+    model = "iid") +
+  f(County1, 
+    model = "iid",
+    group = Year1,
+    control.group = list(model = "rw2"))
+```
+
+where the bit that begins `f(County1,...` defines the interaction, and give precisions for the various components of:
+
+```{r}
+round(M9$summary.hyperpar[,c("mean", "mode")], 2)
+```
+
+In the above table, the first two are the $Spatial_i$ term, the third is the long-term trend $\gamma_s$, the fourth is the iid temporal $\phi_s$ and the fifth is the interaction.
+
+The interaction terms are deviations from the long-term for each of the 102 counties (=Teeside postcodes), shown as:
+
+```{r deviations_from_lt_trend}
+Time <- M9$summary.random$Year0[,"ID"] + 1969
+MainTr <- M9$summary.random$Year0[,"mean"]
+TimeComplete <- rep(1970:2013, each = 102)
+
+ST.II <- M9$summary.random$County1
+ST.II$TimeComplete <- TimeComplete
+
+ST.IIa <- subset(ST.II, TimeComplete != 2007)
+
+ST.IIa$Time <- rep(Time, each = 102)
+ST.IIa$MainTrend <- rep(MainTr, each = 102)
+RE.year <- M9$summary.random$Year0[,"mean"]
+ST.IIa$RE.year <- rep(RE.year, each = 102)
+
+# Interaction trend area 1
+
+library(ggplot2)
+# Figure 24.16 and 24.17 (drop the exp for Figure 24.16)
+p <- ggplot()
+p <- p + xlab("Time") + ylab("Interaction smoother for each county")
+p <- p + theme(text = element_text(size = 15), legend.position="none")
+p <- p + geom_line(data = ST.IIa, col =1,
+                   # aes(x = Time, y = exp(mean + MainTrend + RE.year), group = ID))
+                   aes(x = Time, y = mean + MainTrend + RE.year, group = ID))
+p
+
+```
+
+Perhaps more useful is to look at the long-term trend, temporal iid and space-time interaction, with the exponential component (since it was a Poisson model). If the line is above 1 then there is an increase in the expected number of tornados due to time and the space x time interaction (and _vice versa_). You can see that there is actually a reduction in the expected number of tornados than expected between 1980 and 2000
+
+```{r}
+Time <- M9$summary.random$Year0[,"ID"] + 1969
+MainTr <- M9$summary.random$Year0[,"mean"]
+TimeComplete <- rep(1970:2013, each = 102)
+
+ST.II <- M9$summary.random$County1
+ST.II$TimeComplete <- TimeComplete
+
+ST.IIa <- subset(ST.II, TimeComplete != 2007)
+
+ST.IIa$Time <- rep(Time, each = 102)
+ST.IIa$MainTrend <- rep(MainTr, each = 102)
+RE.year <- M9$summary.random$Year0[,"mean"]
+ST.IIa$RE.year <- rep(RE.year, each = 102)
+
+# Interaction trend area 1
+
+library(ggplot2)
+# Figure 24.16 and 24.17 (drop the exp for Figure 24.16)
+p <- ggplot()
+p <- p + xlab("Time") + ylab("Time + space-time interaction for each county")
+p <- p + theme(text = element_text(size = 15), legend.position="none")
+p <- p + geom_line(data = ST.IIa, col =1,
+                   aes(x = Time, y = exp(mean + MainTrend + RE.year), group = ID))
+p
+```
+
+**Note** we could also present the effects of the interaction as spatial maps, which we will do in the next section on Type III.
 
