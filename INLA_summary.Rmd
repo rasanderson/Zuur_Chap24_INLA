@@ -29,7 +29,7 @@ Some of the above sections are not relevant to us analytically, but I'll put the
 **What this document contains**
 
 * a run through all the different sections of Zuur's Chapter 24.
-* take-home messages for what we should do with the Covid19 stuff. 
+* take-home messages for what we should do with the Covid19 stuff.  
 
 ```{r setup_libraries_data}
 library(raster)
