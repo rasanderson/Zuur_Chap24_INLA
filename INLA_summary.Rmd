@@ -24,7 +24,12 @@ This is based on Chapter 24 of Volume II of _Beginner's Guide to Spatial, Tempor
 * 24.8 Changing the priors, and BYM2 model
 * 24.9 Spatio-temporal analysis and display
 
-Some of the above sections are not relevant to us analytically, but I'll put them in where Zuur has done useful visualisations. Likewise some sections use GAMs rather than GLMs and I'll show the former, but we can easily adapt for the latter. I won't show the code, but have access to it.
+Some of the above sections are not relevant to us analytically, but I'll put them in where Zuur has done useful visualisations. Likewise some sections use GAMs rather than GLMs and I'll show the former, but we can easily adapt for the latter. I won't show most of the code, but have access to it. Some of the graphs/maps in this Word document are a bit squished as I've banged it together in RMarkdown and haven't got the settings right.
+
+**What this document contains**
+
+* a run through all the different sections of Zuur's Chapter 24.
+* take-home messages for what we should do with the Covid19 stuff.
 
 ```{r setup_libraries_data}
 library(raster)
@@ -833,7 +838,7 @@ p
 ### 24.9.5 Type III Interaction
 This is like Type II, but the other way round in that the focus is primarily on space. There is the usual overall spatial pattern modelled with BYM ($Spatial_i$). For each year (week for Teesside) there is a spatial deviation from the main spatial pattern. These spatial deviations are more similar for counties (postcodes) close to one another. But these deviations do not persist in time.
 
-Examples - a one of waste spill into a river might affect the macroinverts in neighbouring streams, but only for a short period of time. A wildfire might affect chances of tornados in neighbouring counties, but only in one year.
+Examples - a one of waste spill into a river might affect the macroinverts in neighbouring streams, but only for a short period of time e.g. one week. A wildfire might affect chances of tornados in neighbouring counties, but only in one year.
 
 Output from the model is the main trend $Spatial_i$ from the BYM, a main trend $Temporal_s$ from the `rw2` + `iid`, and a spatial x temporal interaction. The latter can be shown as separate maps, one for each year, showing the spatial deviation from the main term $Spatial_i$.
 
@@ -958,3 +963,100 @@ spplot(obj=Illi.shp, zcol=c("intIII.1973", "intIII.1974", "intIII.1975",
 Interpretation - you can see that there are actually quite a lot of years where the predominant colour in the map is blue. This reflects the 83% zeros in the original tornado data.
 
 Not shown - we also of course have the main spatial term, which we could show as in Section 24.5.4 via a map with different colours, thicknesses of borders. We also have the main temporal term (with iid) which we could show as in Section 24.9.1. Zuur also recommends model validation as usual, e.g. via simulation done in Section 24.6.5
+
+### 24.9.6 Type IV Interaction
+We still have the main terms $Spatial_i$ and $Temporal_s$. The Type IV interaction assumptions that deviations from the $Temporal_s$ trend at a specific county are not only correlated in time (as with Type II) but also correlated in space with neighbouring counties.
+
+Example - going back to the waste spill in rivers example. In Type III a waste spill into a river might affect the macroinverts in neighbouring streams, but only for one week. In Type IV this effect might last several weeks due to the temporal correlation in time.
+
+Conceptually, a Type IV model can be viewed as:
+
+```{r type_IV, fig.dim=c(4.5,4.5)}
+par(mfrow=c(1,1)) # Too cramp to read in RStudio if on one plot
+plot(x = 0, y = 0, axes = FALSE, type = "n",
+     xlim = c(0, 11),
+     ylim = c(0,11),
+     xlab = "",
+     ylab = "")
+
+lines(x=c(3,3),y=c(1,10))
+lines(x=c(1,10),y=c(3,3))
+xy.Ind <- expand.grid(4:9, seq(4,9, by = 0.5))
+points(xy.Ind, pch = 16)
+text(x=10, y = 3.5, "Time", cex = 1.5)
+text(x=3, y = 10.5, "Space", cex = 1.5)
+
+# At the bottom:
+points(x = 4:9, y = rep(1,6), pch = 1, cex = 2.5)
+text(10, 1, expression(italic(phi[s])), cex = 1.5)
+text(10, 2, expression(italic(gamma[s])), cex = 1.5)
+
+rect(xleft = 3.75, ybottom = 1.75, xright = 9.25, ytop = 2.25,
+     col = grey(0.5))
+
+# left
+points(y = seq(4,9, by = 0.5), x = rep(1,11), pch = 1, cex = 2)
+text(1, 10, expression(italic(v[i])), cex = 1.5, font = 3)
+text(2, 10, expression(italic(u[i])), cex = 1.5)
+
+rect(xleft = 1.75, ybottom = 3.75, ytop = 9.25, xright = 2.25,
+     col = grey(0.5))
+
+for (i in 1:11){
+ rect(xleft = 3.5, ybottom = 3.9 +0.5*(i-1), ytop = 4.1+0.5*(i-1), xright = 9.5,
+      col = grey(0.7))
+}
+
+for (i in 1:6){
+ rect(xleft = 3.9 +(i-1),
+      ybottom = 3.9,
+      ytop = 9.5,
+      xright = 4.1 + (i-1),
+      col = grey(0.7))
+}
+
+points(xy.Ind, pch = 16)
+```
+
+The formula for a Type IV interaction can be given as
+
+```{r eval=FALSE, echo=TRUE}
+f11 <- nT ~ ElevS.std + LogDensity.std + Area.std + 
+  f(County, 
+    model = "bym", 
+    graph = Illi.adj,
+    adjust.for.con.comp = FALSE,
+    constr = TRUE,
+    scale.model = TRUE) +
+  f(Year0, 
+    model = "rw2") +
+  f(Year1,
+    model = "iid") +
+  f(County1, 
+    model = "besag", 
+    graph = Illi.adj,
+    group = Year1,
+    control.group = list(model = "rw2"))
+```
+
+where it is the final `f(County1,...` part that defines the structure of the Type IV interaction. Zuur recommends presentation via Spatial random effects map (Section 24.5.4), Temporal random effects over time (Section 24.9.1) and an interaction map (Section 24.9.5).
+
+### 24.9.7 Discussion
+Zuur recommends running spatio-temporal models without interaction (24.9.1) and with the four types of interaction (Sections 24.9.3 to 24.9.6), and selecting the best model of the five using DICs and WAICs. This is basically what Martinez-Bello (2018) do in their Zika virus / Dengue fever paper. Any suitable error distribution can be used (not just Poisson as used here).
+
+## Take-home messages for Teesside
+I quite like the Martinez-Bello (2018) approach to the way they've presented their INLA results. Their paper at <https://www.mdpi.com/310848> is part of a special issue in _International Journal of Environmental Health and Public Health_ called "Spatio-temporal analysis of infectious diseases"<https://www.mdpi.com/journal/ijerph/special_issues/Infectious-Diseases-Spatio-Temporal>.
+
+A few points to think about:
+
+* Martinez-Bello only have two response variables (Denge and Zika). We have 8 lineages, so 9 responses if we include the 'all lineages' response. This makes it a mess to analyse and present. Can we cut it down and simplify?
+* We have lots of covariates whereas Martinez-Bello only focus on the spatio-temporal stuff. This makes model simplification much tougher, especially if we have 8 or 9 responses to work with
+* The Lancet Infectious Diseases has some bizarre formatting specifications. e.g you can't even put 23.5 as a number but have to change the decimal point to a mid line with an ASCII code. Last time it took me ages doing all this before Mr Grumpy-Face (John McConnell) <https://www.thelancet.com/laninf/about> rejected without review. Conversely TLID is impact factor of 24, whereas IJEHPH is IF 2.8
+
+My feeling is not to do any model simplification with regard to the covariates, but just present the full model with all the covariates even if some prove to be irrelevant. If we run this separately for 9 responses (8 lineages, all lineages) and 5 model types (spatio-temporal no interaction, spatio-temporal interactions I to IV) we still have 45 models which is a nightmare. So I think it best to:
+
+* run INLA only for the "all lineages" response, giving us 5 models to present. As we will be presenting all 5 versions of the spatio-temporal, this should be sensitive enough to pick up changes that are driven by an individual lineage. We can then expand on these in the discussion. With only 5 models we can if we want to a robust simulation-based model testing as we did in Section 24.6.5 above.
+* if we decide to go for TLID we can have a long supplementary document with 45 models but I still don't think that's a good idea (no one will read it anyway)
+* we can include the phylogenetic dendrogram, and graphs of patterns over time for each lineage separately as we already have in the draft manuscript.
+
+
