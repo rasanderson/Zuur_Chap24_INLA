@@ -427,7 +427,7 @@ OK, I'll admit that I don't understand PC priors though notice you have them in 
 Zuur now formally introduces the BYM model. Our original model was
 
 $$log(\mu_{is})=Intercept +Covariates_{is}+u_i$$
-where $u_i$ are the spatially correlated random effects, calculated by averaging neighbouring random effects. There are 102 counties in Illinois (equivalent to our Teeside postcodes), giving 102 $u_i$'s. **But**, if there is extra variation due to postcodes, and if this extra variation is **not** spatially correlated, the problem with iCAR is it can't separate between pure spatial correlation between counties and extra random variation at counties.
+where $u_i$ are the spatially correlated random effects, calculated by averaging neighbouring random effects. There are 102 counties in Illinois (equivalent to our Teesside postcodes), giving 102 $u_i$'s. **But**, if there is extra variation due to postcodes, and if this extra variation is **not** spatially correlated, the problem with iCAR is it can't separate between pure spatial correlation between counties and extra random variation at counties.
 
 The BYM solution is to include an extra random effect $v_i$ that is independent, identical and normally distributed (iid):
 
@@ -485,8 +485,8 @@ where
 
 The main advantage of BYM2 is that with separate $\sigma$ and $\phi$ terms interpretation is much easier, and it is also makes it simpler to specify the PC terms.
 
-## 24.9 Spatio-temporal correlation for aerial data (useful for Teeside)
-This section is very useful, and aligns closely with what you've already done for Teeside. In particular, it uses Poisson BYM with `rw2` for time. It also shows how the 4 different types of possible interaction models can be built up, which would allow us to do the sort of presentation in the Zika/Dengue fever paper.
+## 24.9 Spatio-temporal correlation for aerial data (useful for Teesside)
+This section is very useful, and aligns closely with what you've already done for Teesside. In particular, it uses Poisson BYM with `rw2` for time. It also shows how the 4 different types of possible interaction models can be built up, which would allow us to do the sort of presentation in the Zika/Dengue fever paper.
 
 ### 24.9.1 Space and time
 The basic model is:
@@ -497,7 +497,7 @@ where $i$ is counties (postcodes for us) and $s$ is years (weeks in 2020 for us)
 
 * spatial modelled by BYM (which includes spatially correlated and noise iid)
 * temporal modelled by `rw2` smoother for year
-* also add a temporal iid for a year random effect (week for Teeside)
+* also add a temporal iid for a year random effect (week for Teesside)
 
 This gives a model of:
 
@@ -509,7 +509,7 @@ where we now have 4 types of random effects:
 * $\gamma_s$ temporal long-term smoother
 * $\phi_s$ temporal noise iid
 
-Interpretation of the $\gamma_s + \phi_s$ is that there is a long-term smoother from the `rw2` ($\gamma_s$) and each year, or week for Teeside, may have random variation from this long-term trend ($\phi_s$).
+Interpretation of the $\gamma_s + \phi_s$ is that there is a long-term smoother from the `rw2` ($\gamma_s$) and each year, or week for Teesside, may have random variation from this long-term trend ($\phi_s$).
 
 This diagram helps visualise the main terms and the 4 random effects:
 
@@ -547,7 +547,7 @@ rect(xleft = 1.75, ybottom = 3.75, ytop = 9.25, xright = 2.25,
 
 Here the grey rectangles represent spatially correlated random effects and temporally correlated random effects. The open circles represent iid for space and time. The black dots represent observations.
 
-This is in R the structure of the model, which I think matches the one you're currently using for Teeside.
+This is in R the structure of the model, which I think matches the one you're currently using for Teesside.
 
 ```{r spatio_temporal model, echo=TRUE, eval=FALSE}
 Torn$County <- Torn$ID
@@ -625,7 +625,7 @@ p
 The solid thick line is `rw2` and trend $\gamma_s$, the thin line is `iid` noise $\phi_s$ and the grey bands are 95% credible intervals.
 
 ### 24.9.2 Four types of interactions
-The model in Section 24.9.1 assumes the spatial and temporal effects are independent and do not interact in any way. i.e. it assumes that spatial effects are constant over time, and temporal effects are constant over space. This is unlikely to be true for Teeside. So we can rewrite the model as:
+The model in Section 24.9.1 assumes the spatial and temporal effects are independent and do not interact in any way. i.e. it assumes that spatial effects are constant over time, and temporal effects are constant over space. This is unlikely to be true for Teesside. So we can rewrite the model as:
 
 $$log(\mu_{is})=Intercept + Covariates_{is} + Spatial_i + Temporal_s + Spatial_i \times Temporal_s$$
 
@@ -695,7 +695,7 @@ f8 <- nT ~ ElevS.std + LogDensity.std + Area.std +
   f(County.Year, model = "iid")
 ```
 
-### 24.9.4 Type II Interaction (much more interesting)
+### 24.9.4 Type II Interaction (starts to be more interesting)
 This is the spatial iid $v_i$ and temporal trend $\gamma_s$. Now each county (postcode) is allowed to have its own `rw2` trend, and these are deviations from the overall smoother $\gamma_s$. Temporal trends are different per county, but they do not have any structure in space. This model is most useful if there are unmeasured covariates that cause the temporal trend in a specific county (postcode) to be different from the main trend.
 
 We can show this schematically below, where the light grey rectangles are plotted for each county (postcode) along the time axis, and represent deviations from the main term $Temporal_s$.
@@ -768,7 +768,7 @@ round(M9$summary.hyperpar[,c("mean", "mode")], 2)
 
 In the above table, the first two are the $Spatial_i$ term, the third is the long-term trend $\gamma_s$, the fourth is the iid temporal $\phi_s$ and the fifth is the interaction.
 
-The interaction terms are deviations from the long-term for each of the 102 counties (=Teeside postcodes), shown as:
+The interaction terms are deviations from the long-term for each of the 102 counties (=Teesside postcodes), shown as:
 
 ```{r deviations_from_lt_trend}
 Time <- M9$summary.random$Year0[,"ID"] + 1969
@@ -830,3 +830,131 @@ p
 
 **Note** we could also present the effects of the interaction as spatial maps, which we will do in the next section on Type III.
 
+### 24.9.5 Type III Interaction
+This is like Type II, but the other way round in that the focus is primarily on space. There is the usual overall spatial pattern modelled with BYM ($Spatial_i$). For each year (week for Teesside) there is a spatial deviation from the main spatial pattern. These spatial deviations are more similar for counties (postcodes) close to one another. But these deviations do not persist in time.
+
+Examples - a one of waste spill into a river might affect the macroinverts in neighbouring streams, but only for a short period of time. A wildfire might affect chances of tornados in neighbouring counties, but only in one year.
+
+Output from the model is the main trend $Spatial_i$ from the BYM, a main trend $Temporal_s$ from the `rw2` + `iid`, and a spatial x temporal interaction. The latter can be shown as separate maps, one for each year, showing the spatial deviation from the main term $Spatial_i$.
+
+Using the same sort of schematic as before, we can visualise Type III model as:
+
+```{r type_III, fig.dim=c(4.5,4.5)}
+par(mfrow=c(1,1)) # Too cramp to read in RStudio if on one plot
+plot(x = 0, y = 0, axes = FALSE, type = "n",
+     xlim = c(0, 11),
+     ylim = c(0,11),
+     xlab = "",
+     ylab = "")
+
+lines(x=c(3,3),y=c(1,10))
+lines(x=c(1,10),y=c(3,3))
+xy.Ind <- expand.grid(4:9, seq(4,9, by = 0.5))
+points(xy.Ind, pch = 16)
+text(x=10, y = 3.5, "Time", cex = 1.5)
+text(x=3, y = 10.5, "Space", cex = 1.5)
+
+# At the bottom:
+points(x = 4:9, y = rep(1,6), pch = 1, cex = 2.5)
+text(10, 1, expression(italic(phi[s])), cex = 1.5)
+text(10, 2, expression(italic(gamma[s])), cex = 1.5)
+
+rect(xleft = 3.75, ybottom = 1.75, xright = 9.25, ytop = 2.25,
+     col = grey(0.5))
+
+# left
+points(y = seq(4,9, by = 0.5), x = rep(1,11), pch = 1, cex = 2)
+text(1, 10, expression(italic(v[i])), cex = 1.5, font = 3)
+text(2, 10, expression(italic(u[i])), cex = 1.5)
+
+rect(xleft = 1.75, ybottom = 3.75, ytop = 9.25, xright = 2.25,
+     col = grey(0.5))
+
+for (i in 1:6){
+ rect(xleft = 3.9 +(i-1),
+      ybottom = 3.9,
+      ytop = 9.5,
+      xright = 4.1 + (i-1),
+      col = grey(0.7))
+}
+
+points(xy.Ind, pch = 16)
+```
+
+The formulation of the model in INLA is similar to that for Type II. We need another copy of `Year` as we can't use the same name multiple times in INLA, and the definition of the interaction has swapped year and county, and uses a different dependency structure of the observations from the same group, namely iCAR:
+
+```{r echo=TRUE, eval=FALSE}
+Torn$Year2 <- Torn$Year - min(Torn$Year) + 1
+
+f10 <- nT ~ ElevS.std + LogDensity.std + Area.std + 
+  f(County, 
+    model = "bym", 
+    graph = Illi.adj,
+    adjust.for.con.comp = FALSE,
+    constr = TRUE,
+    scale.model = TRUE) +
+  f(Year0, 
+    model = "rw2") +
+  f(Year1,
+    model = "iid") +
+  f(Year2, 
+    model = "iid",
+    group = County1,
+    control.group = list(model = "besag", graph = Illi.adj))
+```
+
+The following summarises the results as maps of the counties for each year for the Spatial x Temporal Type III interaction. Blue is large negative, white is random effects -1 to +1, and red is large positive.
+
+```{r type_III_maps, fig.dim=c(5.5,4.5)}
+delta.intIII <- data.frame(delta = M10$summary.random$Year2[,2],
+                           year  = Torn$Year,
+                           ID.area = Torn$County)
+
+delta.intIII.matrix <- matrix(delta.intIII[,1], 
+                              nrow =102,
+                              ncol = 43,
+                              byrow = TRUE)
+#delta.intIII.matrix[1:5, 1:5]
+rownames(delta.intIII.matrix)<- 1:102
+
+
+cutoff.interaction <- c(-2,-1, 1,2)
+
+delta.intIII.factor <- data.frame(NAME=1:102)
+for(i in 1:43){
+  delta.factor.temp <- cut(delta.intIII.matrix[,i],
+                          breaks = cutoff.interaction,
+                          include.lowest=TRUE) 
+  delta.intIII.factor <- cbind(delta.intIII.factor,delta.factor.temp)
+}
+colnames(delta.intIII.factor)<- c("NAME",Time)
+
+
+attr(Illi.shp, "data") <- data.frame(Torn, intIII = delta.intIII.factor)
+library(lattice)
+trellis.par.set(axis.line=list(col=NA))
+
+#Figure 24.19
+spplot(obj=Illi.shp, zcol=c("intIII.1973", "intIII.1974", "intIII.1975",
+                            "intIII.1976", "intIII.1977", "intIII.1978",
+                            "intIII.1979", "intIII.1980", "intIII.1981",
+                            "intIII.1982", "intIII.1983", "intIII.1984",
+                            "intIII.1985", "intIII.1986", "intIII.1987",
+                            "intIII.1988", "intIII.1989", "intIII.1990",
+                            "intIII.1991", "intIII.1992", "intIII.1993",
+                            "intIII.1994", "intIII.1995", "intIII.1996",
+                            "intIII.1997", "intIII.1998", "intIII.1999",
+                            "intIII.2000", "intIII.2001", "intIII.2002",
+                            "intIII.2003", "intIII.2004", "intIII.2005",
+                            "intIII.2006", "intIII.2008", "intIII.2009",
+                            "intIII.2010", "intIII.2011", "intIII.2012",
+                            "intIII.2013"), 
+       col.regions=c("blue", "white", "red"), #gray(2.5:0.5/3),
+       names.attr=c(seq(1973, 2006),seq(2008, 2013)),#Time,
+       main="")
+
+```
+
+Interpretation - you can see that there are actually quite a lot of years where the predominant colour in the map is blue. This reflects the 83% zeros in the original tornado data.
+
+Not shown - we also of course have the main spatial term, which we could show as in Section 24.5.4 via a map with different colours, thicknesses of borders. We also have the main temporal term (with iid) which we could show as in Section 24.9.1. Zuur also recommends model validation as usual, e.g. via simulation done in Section 24.6.5
