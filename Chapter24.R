@@ -537,7 +537,7 @@ M2.sim <- inla(formula = f2,
            control.compute = list(config = TRUE),
            data = Torn)
 
-NSim <- 10000
+NSim <- 1000
 SimData <- inla.posterior.sample(n = NSim, result = M2.sim)
 
 MyParams <- rownames(M2.sim$summary.fixed)
@@ -637,7 +637,7 @@ x2 <- max(Range[2], SSE)
 
 hist(SSsim, 
      xlim = c(0.98 * x1, 1.02 * x2),
-     main = "", 
+     main = "",
      xlab = "Sum of squared Pearson residuals / N")
 
 points(x = sum(E2^2) / N, 
